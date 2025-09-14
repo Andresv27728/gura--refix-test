@@ -1,106 +1,84 @@
-// plugins/downloader-play.js
-import fetch from "node-fetch";
-import ytdl from "ytdl-core";
-import fs from "fs";
-import path from "path";
+import fetch from 'node-fetch';
+import ytdl from 'ytdl-core';
 
-const __dirname = process.cwd();
+let handler = async (m, { conn, text }) => {
+    if (!text) return conn.reply(m.chat, '🎵 Ingresa un enlace de *YouTube*.', m);
 
-// 🔑 APIS QUE AÚN FUNCIONAN
-const backups = [
-  url => `https://api-v1.majhcc.my.id/api/ytmp3?url=${encodeURIComponent(url)}`,
-  url => `https://api-v1.xypherxz.my.id/api/ytmp3?url=${encodeURIComponent(url)}`,
-  url => `https://api.agatz.xyz/api/ytmp3?url=${encodeURIComponent(url)}`
-];
+    await m.react('⏳');
 
-async function ytdlDownload(url) {
-  if (!ytdl.validateURL(url)) throw new Error("❌ URL inválida de YouTube");
+    const apis = [
+        url => `https://api.alyachan.dev/api/ytmp3?url=${url}`, 
+        url => `https://api.fgmods.xyz/api/downloader/ytmp3?url=${url}`,
+        url => `https://dark-core-api.vercel.app/api/download/ytmp3?url=${url}`,
+        url => `https://mahiru-shiina.vercel.app/download/ytmp3?url=${url}`,
+        url => `https://api.siputzx.my.id/api/d/ytmp3?url=${url}`,
+        url => `https://api.botcahx.eu.org/api/dowloader/ytmp3?url=${url}`,
+        url => `https://api.agungny.my.id/api/youtube-audio?url=${url}`,
+        url => `https://widipe.com/download/ytmp3?url=${url}`,
+        url => `https://dlpanda.com/api?url=${url}&type=mp3`,
+        url => `https://delirius-apiofc.vercel.app/download/ytmp3?url=${url}`
+    ];
 
-  const info = await ytdl.getInfo(url);
-  const title = info.videoDetails.title.replace(/[^\w\s]/gi, "");
-  const file = path.join(__dirname, `tmp/${Date.now()}.mp3`);
+    let result, buffer, title = 'audio';
 
-  await new Promise((resolve, reject) => {
-    const stream = ytdl(url, {
-      filter: "audioonly",
-      quality: "highestaudio",
-      highWaterMark: 1 << 25
-    }).pipe(fs.createWriteStream(file));
+    for (const api of apis) {
+        try {
+            const response = await fetch(api(text));
+            result = await response.json().catch(() => null);
 
-    stream.on("finish", resolve);
-    stream.on("error", reject);
-  });
+            const link = result?.data?.url ||
+                         result?.result?.download_url ||
+                         result?.result?.url ||
+                         result?.download_url ||
+                         result?.link;
 
-  return { file, title };
-}
+            title = result?.result?.title || result?.title || 'audio';
 
-async function apiDownload(url) {
-  for (let api of backups) {
+            if (link) {
+                const audioRes = await fetch(link);
+                if (!audioRes.ok) continue;
+
+                buffer = await audioRes.buffer();
+                break;
+            }
+        } catch (err) {
+            console.log(`⚠️ Error con API: ${api(text)}`, err.message);
+            continue;
+        }
+    }
+
     try {
-      const res = await fetch(api(url));
-      if (!res.ok) throw new Error(`API ${api} no respondió`);
+        if (!buffer) {
+            // fallback local con ytdl-core
+            const info = await ytdl.getInfo(text);
+            title = info.videoDetails.title;
+            buffer = await new Promise((resolve, reject) => {
+                const chunks = [];
+                ytdl(text, { filter: 'audioonly', quality: 'highestaudio' })
+                    .on('data', chunk => chunks.push(chunk))
+                    .on('end', () => resolve(Buffer.concat(chunks)))
+                    .on('error', reject);
+            });
+        }
 
-      const data = await res.json().catch(() => null);
-      if (!data) continue;
+        await conn.sendMessage(
+            m.chat,
+            {
+                audio: buffer,
+                mimetype: 'audio/mp4',
+                fileName: `${title}.mp3`
+            },
+            { quoted: m }
+        );
 
-      const dlUrl =
-        data.result?.download_url ||
-        data.result?.url ||
-        data.result?.link ||
-        null;
-
-      if (dlUrl) return { dlUrl, title: data.result?.title || "audio" };
-    } catch (e) {
-      console.log("⚠️ Error con API:", api(url), e.message);
-      continue;
+        await m.react('✅');
+    } catch (err) {
+        console.error(err);
+        await m.react('💢');
+        m.reply('❌ No se pudo descargar el audio.');
     }
-  }
-  throw new Error("❌ Todas las APIs externas fallaron.");
-}
-
-let handler = async (m, { text, conn }) => {
-  if (!text) return m.reply("🔎 Ingresa un enlace de YouTube.");
-
-  let url = text.includes("youtube.com") || text.includes("youtu.be") ? text : null;
-
-  try {
-    let result;
-    if (url) {
-      // 1️⃣ Intento con ytdl-core
-      try {
-        result = await ytdlDownload(url);
-        await conn.sendMessage(m.chat, {
-          audio: { url: result.file },
-          mimetype: "audio/mp4",
-          fileName: `${result.title}.mp3`
-        }, { quoted: m });
-        fs.unlinkSync(result.file);
-        return;
-      } catch (err) {
-        console.log("⚠️ Error ytdl-core:", err.message);
-      }
-
-      // 2️⃣ Intento con APIs externas
-      result = await apiDownload(url);
-      if (result?.dlUrl) {
-        await conn.sendMessage(m.chat, {
-          audio: { url: result.dlUrl },
-          mimetype: "audio/mp4",
-          fileName: `${result.title}.mp3`
-        }, { quoted: m });
-        return;
-      }
-    } else {
-      m.reply("❌ Solo soporta enlaces de YouTube.");
-    }
-  } catch (e) {
-    console.log(e);
-    m.reply("❌ No pude descargar el audio. Intenta con otro link.");
-  }
 };
 
-handler.help = ["play", "ytmp3"];
-handler.tags = ["downloader"];
-handler.command = /^(play|yt(mp3)?)$/i;
-
+handler.command = /^(play|ytmp3)$/i;
+handler.tags = ['descargas'];
 export default handler;
