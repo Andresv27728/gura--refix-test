@@ -1,84 +1,93 @@
-import fetch from 'node-fetch';
-import ytdl from 'ytdl-core';
+import fetch from 'node-fetch'
 
-let handler = async (m, { conn, text }) => {
-    if (!text) return conn.reply(m.chat, '🎵 Ingresa un enlace de *YouTube*.', m);
+let handler = async (m, { conn, usedPrefix, command, text }) => {
+  if (!text) return m.reply(`🦈 *¡Eh buba~! Ingresa algo para buscar en YouTube desu~*\n🌊 *Ejemplo:* ${usedPrefix + command} Gawr Gura`)
 
-    await m.react('⏳');
+  try {
+    // 🔍 Buscar video con Delirius API
+    let searchRes = await fetch(`https://delirius-apiofc.vercel.app/search/ytsearch?q=${encodeURIComponent(text)}`)
+    let search = await searchRes.json()
 
+    if (!search.data || !search.data.length) return m.reply('❌ *Awww~ No encontré nada buba~.*')
+
+    let result = search.data[0]
+
+    // 🧾 Mostrar info del video con decoración aleatoria
+    const decorations = [
+      `✨ *「𝘼𝙦𝙪𝙞́ 𝙩𝙚𝙣𝙚𝙢𝙤𝙨 𝙗𝙪𝙗𝙖!」*\n\n`,
+      `🌊 *「¡Hiii~ Esto es lo que encontré desu~!」*\n\n`,
+      `🌟 *「Mira buba~ ¡Aquí está!」*\n\n`,
+      `🦈 *「¡Tiburón trabajando, aquí está tu resultado!」*\n\n`,
+      `💙 *「¡Esto es para ti, buba~!」*\n\n`
+    ]
+    const randomDecoration = decorations[Math.floor(Math.random() * decorations.length)]
+    let info = `${randomDecoration}` +
+               `🦈 *Título:* ${result.title}\n` +
+               `🌊 *Canal:* ${result.author?.name || 'Desconocido'}\n` +
+               `⏳ *Duración:* ${result.duration || 'Desconocida'}\n` +
+               `👁️ *Vistas:* ${result.views || 'Desconocidas'}\n` +
+               `📅 *Publicado:* ${result.publishedAt || 'Desconocida'}\n` +
+               `🔗 *Link:* ${result.url}`
+
+    if (result.image) {
+      await conn.sendMessage(m.chat, { image: { url: result.image }, caption: info }, { quoted: m })
+    } else {
+      await m.reply(info)
+    }
+
+    // 🎧 Descargar audio desde múltiples APIs
     const apis = [
-        url => `https://api.alyachan.dev/api/ytmp3?url=${url}`, 
-        url => `https://api.fgmods.xyz/api/downloader/ytmp3?url=${url}`,
-        url => `https://dark-core-api.vercel.app/api/download/ytmp3?url=${url}`,
-        url => `https://mahiru-shiina.vercel.app/download/ytmp3?url=${url}`,
-        url => `https://api.siputzx.my.id/api/d/ytmp3?url=${url}`,
-        url => `https://api.botcahx.eu.org/api/dowloader/ytmp3?url=${url}`,
-        url => `https://api.agungny.my.id/api/youtube-audio?url=${url}`,
-        url => `https://widipe.com/download/ytmp3?url=${url}`,
-        url => `https://dlpanda.com/api?url=${url}&type=mp3`,
-        url => `https://delirius-apiofc.vercel.app/download/ytmp3?url=${url}`
-    ];
+      `https://theadonix-api.vercel.app/api/ytmp3?url=${encodeURIComponent(result.url)}`, // API 1
+      `https://yt1s.com/api/ajaxSearch/index?vid=${encodeURIComponent(result.url)}`, // API 2
+      `https://api.vevioz.com/api/button/mp3/${encodeURIComponent(result.url)}`, // API 3
+      `https://api.ytjar.download/audio?url=${encodeURIComponent(result.url)}` // API 4
+    ]
 
-    let result, buffer, title = 'audio';
-
+    let audioUrl = null
     for (const api of apis) {
-        try {
-            const response = await fetch(api(text));
-            result = await response.json().catch(() => null);
+      try {
+        const res = await fetch(api)
+        const json = await res.json()
 
-            const link = result?.data?.url ||
-                         result?.result?.download_url ||
-                         result?.result?.url ||
-                         result?.download_url ||
-                         result?.link;
-
-            title = result?.result?.title || result?.title || 'audio';
-
-            if (link) {
-                const audioRes = await fetch(link);
-                if (!audioRes.ok) continue;
-
-                buffer = await audioRes.buffer();
-                break;
-            }
-        } catch (err) {
-            console.log(`⚠️ Error con API: ${api(text)}`, err.message);
-            continue;
+        // Verificar si la API devuelve un enlace de audio
+        if (json?.result?.audio) {
+          audioUrl = json.result.audio
+          break
+        } else if (json?.links?.mp3) {
+          audioUrl = json.links.mp3
+          break
+        } else if (json?.url) {
+          audioUrl = json.url
+          break
         }
+      } catch (e) {
+        console.error(`Error con la API: ${api}`, e)
+      }
     }
 
-    try {
-        if (!buffer) {
-            // fallback local con ytdl-core
-            const info = await ytdl.getInfo(text);
-            title = info.videoDetails.title;
-            buffer = await new Promise((resolve, reject) => {
-                const chunks = [];
-                ytdl(text, { filter: 'audioonly', quality: 'highestaudio' })
-                    .on('data', chunk => chunks.push(chunk))
-                    .on('end', () => resolve(Buffer.concat(chunks)))
-                    .on('error', reject);
-            });
-        }
-
-        await conn.sendMessage(
-            m.chat,
-            {
-                audio: buffer,
-                mimetype: 'audio/mp4',
-                fileName: `${title}.mp3`
-            },
-            { quoted: m }
-        );
-
-        await m.react('✅');
-    } catch (err) {
-        console.error(err);
-        await m.react('💢');
-        m.reply('❌ No se pudo descargar el audio.');
+    if (!audioUrl) {
+      return m.reply('❌ *Hyaaa~ No pude conseguir el audio buba~.*')
     }
-};
 
-handler.command = /^(play|ytmp3)$/i;
-handler.tags = ['descargas'];
-export default handler;
+    // 🗣️ Descargar el buffer
+    let audioRes = await fetch(audioUrl)
+    if (!audioRes.ok) throw new Error('No se pudo descargar el archivo de audio.')
+
+    let audioBuffer = await audioRes.buffer()
+
+    // 🎤 Enviar como nota de voz
+    await conn.sendMessage(m.chat, {
+      audio: audioBuffer,
+      mimetype: 'audio/mpeg',
+      fileName: 'audio.mp3',
+      ptt: true
+    }, { quoted: m })
+
+  } catch (e) {
+    m.reply(`❌ *Gyaa~ Algo salió mal desu~: ${e.message}*`)
+    await m.react('✖️')
+  }
+}
+
+handler.command = ['ytbuscar', 'ytsearch'] // Puedes personalizar el comando
+export default handler
