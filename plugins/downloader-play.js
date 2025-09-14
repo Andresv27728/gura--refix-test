@@ -1,133 +1,133 @@
-import axios from "axios";
-import yts from "yt-search";
+import fetch from "node-fetch";
 import ytdl from "ytdl-core";
-import fs from "fs";
-import path from "path";
-import config from "../config.cjs";
+import yts from "yt-search";
 
-const play = async (m, gss) => {
-  const prefix = config.PREFIX;
-  const cmd = m.body.startsWith(prefix)
-    ? m.body.slice(prefix.length).split(" ")[0].toLowerCase()
-    : "";
-  const args = m.body.slice(prefix.length + cmd.length).trim().split(" ");
+const prefix = "!"; // 🔹 Define aquí tu prefijo fijo
 
-  if (cmd === "play") {
-    if (args.length === 0 || !args.join(" ")) {
-      return m.reply("*Please provide a song name or keywords to search for.*");
-    }
+// 🔹 Lista de 20 APIs externas de descarga
+const downloadAPIs = [
+  (url) => `https://api.davidcyriltech.my.id/download/ytmp3?url=${url}`,
+  (url) => `https://api.ryzendesu.vip/api/dl/ytmp3?url=${url}`,
+  (url) => `https://api.fgmods.xyz/api/downloader/ytmp3?url=${url}`,
+  (url) => `https://api.nyxs.pw/dl/ytmp3?url=${url}`,
+  (url) => `https://api-caliph.vercel.app/api/ytmp3?url=${url}`,
+  (url) => `https://api.vreden.my.id/api/ytmp3?url=${url}`,
+  (url) => `https://api.agatz.xyz/api/ytmp3?url=${url}`,
+  (url) => `https://api.akuari.my.id/downloader/ytmp3?url=${url}`,
+  (url) => `https://api.lolhuman.xyz/api/ytmp3?url=${url}`,
+  (url) => `https://delirius-apiofc.vercel.app/download/ytmp3?url=${url}`,
+  (url) => `https://api.zahwazein.xyz/downloader/ytmp3?url=${url}`,
+  (url) => `https://widipe.com/download/ytmp3?url=${url}`,
+  (url) => `https://vihangayt.me/download/ytmp3?url=${url}`,
+  (url) => `https://api.fgmods.xyz/api/ytmp3?url=${url}`,
+  (url) => `https://api.xteam.xyz/dl/ytmp3?url=${url}`,
+  (url) => `https://api.erdwpe.xyz/api/ytmp3?url=${url}`,
+  (url) => `https://api.neoxr.eu/api/ytmp3?url=${url}`,
+  (url) => `https://api.botcahx.biz.id/api/ytmp3?url=${url}`,
+  (url) => `https://api.tiodevhost.my.id/api/youtube/playmp3?url=${url}`,
+  (url) => `https://api.vihangayt.me/api/ytmp3?url=${url}`
+];
 
-    const searchQuery = args.join(" ");
-    m.reply("> *🎧 Searching for the song...*");
+const handler = async (m, { conn, args }) => {
+  if (!args[0]) {
+    return conn.reply(
+      m.chat,
+      `✏️ Ingresa un título para buscar en YouTube.\n\nEjemplo:\n> ${prefix}play Corazón Serrano - Mix`,
+      m
+    );
+  }
 
-    try {
-      const searchResults = await yts(searchQuery);
-      if (!searchResults.videos || searchResults.videos.length === 0) {
-        return m.reply(`❌ No results found for "${searchQuery}".`);
-      }
+  try {
+    // 1️⃣ Buscar en YouTube
+    const search = await yts(args.join(" "));
+    if (!search.videos || !search.videos.length)
+      return conn.reply(m.chat, "❌ No se encontraron resultados.", m);
 
-      const firstResult = searchResults.videos[0];
-      const videoUrl = firstResult.url;
+    const video = search.videos[0];
+    const videoInfo = {
+      title: video.title,
+      url: video.url,
+      thumbnail: video.thumbnail,
+      timestamp: video.timestamp,
+      ago: video.ago,
+      views: video.views
+    };
 
-      // Lista de métodos de descarga (20 en total)
-      const methods = [
-        { type: "ytdl", url: videoUrl },
-        { type: "api", url: `https://api.davidcyriltech.my.id/download/ytmp3?url=${videoUrl}` },
-        { type: "api", url: `https://api.lolhuman.xyz/api/ytaudio2?url=${videoUrl}` },
-        { type: "api", url: `https://vihangayt.me/download/ytmp3?url=${videoUrl}` },
-        { type: "api", url: `https://api.hxz-api.xyz/dl/ytmp3?url=${videoUrl}` },
-        { type: "api", url: `https://api.neoxr.eu.org/api/download/youtube?url=${videoUrl}` },
-        { type: "api", url: `https://api.itsrose.life/youtube-mp3?url=${videoUrl}` },
-        { type: "api", url: `https://api.bochilteam.com/download/ytmp3?url=${videoUrl}` },
-        { type: "api", url: `https://api.shadowapi.xyz/api/yta?url=${videoUrl}` },
-        { type: "api", url: `https://api.violetics.pw/api/media/youtube?url=${videoUrl}` },
-        { type: "api", url: `https://api.zenzapi.xyz/downloader/ytmp3?url=${videoUrl}` },
-        { type: "api", url: `https://api.lordkeb.com/ytmp3?url=${videoUrl}` },
-        { type: "api", url: `https://api.agatz.xyz/api/ytmp3?url=${videoUrl}` },
-        { type: "api", url: `https://api.alphacoders.xyz/api/ytaudio?url=${videoUrl}` },
-        { type: "api", url: `https://api.xyroinee.xyz/api/ytmp3?url=${videoUrl}` },
-        { type: "api", url: `https://api.caliphapi.com/ytaudio?url=${videoUrl}` },
-        { type: "api", url: `https://api.nurutomo.xyz/api/ytaudio?url=${videoUrl}` },
-        { type: "api", url: `https://api.kenapanani.xyz/api/ytdl?url=${videoUrl}` },
-        { type: "api", url: `https://api.akuari.my.id/downloader/ytmp3?url=${videoUrl}` },
-        { type: "api", url: `https://guruapi.tech/api/ytaudio?url=${videoUrl}` },
-      ];
+    // 2️⃣ Enviar info del video
+    const thumb = await (await fetch(videoInfo.thumbnail)).buffer();
+    await conn.sendMessage(
+      m.chat,
+      {
+        image: thumb,
+        caption: `🎶 *Resultado encontrado*\n\n📌 *Título:* ${videoInfo.title}\n⏱️ *Duración:* ${videoInfo.timestamp}\n👀 *Vistas:* ${videoInfo.views}\n📅 *Publicado:* ${videoInfo.ago}\n🔗 *Enlace:* ${videoInfo.url}`
+      },
+      { quoted: m }
+    );
 
-      let downloaded = false;
+    // 3️⃣ Intentar descarga con las 20 APIs
+    const encodedUrl = encodeURIComponent(videoInfo.url);
+    let audioBuffer = null;
 
-      for (let method of methods) {
-        try {
-          let title, downloadUrl;
+    for (const api of downloadAPIs) {
+      try {
+        const res = await fetch(api(encodedUrl));
+        if (!res.ok) continue;
 
-          if (method.type === "ytdl") {
-            // Método local con ytdl-core
-            title = firstResult.title;
-            const outputPath = path.resolve(`./tmp/${Date.now()}.mp3`);
-            await new Promise((resolve, reject) => {
-              ytdl(method.url, { filter: "audioonly", quality: "highestaudio" })
-                .pipe(fs.createWriteStream(outputPath))
-                .on("finish", resolve)
-                .on("error", reject);
-            });
-            await gss.sendMessage(
-              m.from,
-              {
-                audio: { url: outputPath },
-                mimetype: "audio/mp4",
-                ptt: false,
-              },
-              { quoted: m }
-            );
-            fs.unlinkSync(outputPath);
-            m.reply(`> ✅ *${title}* downloaded successfully!`);
-            downloaded = true;
-            break;
-          } else {
-            // Método externo por API
-            const res = await axios.get(method.url);
-            const data = res.data;
+        const json = await res.json();
 
-            // Diferentes APIs usan estructuras distintas
-            if (data.result?.download_url) {
-              title = data.result.title || firstResult.title;
-              downloadUrl = data.result.download_url;
-            } else if (data.result?.url) {
-              title = data.result.title || firstResult.title;
-              downloadUrl = data.result.url;
-            } else if (data.url) {
-              title = data.title || firstResult.title;
-              downloadUrl = data.url;
-            }
+        const dlUrl =
+          json.result?.download_url ||
+          json.result?.url ||
+          json.result?.audio ||
+          json.url;
 
-            if (!downloadUrl) throw new Error("Invalid API response");
-
-            await gss.sendMessage(
-              m.from,
-              {
-                audio: { url: downloadUrl },
-                mimetype: "audio/mp4",
-                ptt: false,
-              },
-              { quoted: m }
-            );
-            m.reply(`> ✅ *${title}* downloaded successfully!`);
-            downloaded = true;
-            break;
-          }
-        } catch (err) {
-          console.log(`⚠️ Método fallido: ${method.url}`);
-          continue; // Probar siguiente método
+        if (dlUrl) {
+          audioBuffer = await (await fetch(dlUrl)).buffer();
+          break;
         }
+      } catch (e) {
+        console.log("⚠️ Error con API:", api(encodedUrl), e.message);
       }
-
-      if (!downloaded) {
-        m.reply("❌ All download methods failed, please try again later.");
-      }
-    } catch (error) {
-      console.error(error);
-      m.reply("❌ An error occurred while processing your request.");
     }
+
+    // 4️⃣ Último recurso: YTDL local
+    if (!audioBuffer) {
+      const audioStream = ytdl(videoInfo.url, {
+        filter: "audioonly",
+        quality: "highestaudio",
+        highWaterMark: 1 << 25
+      });
+
+      await conn.sendMessage(
+        m.chat,
+        {
+          audio: { stream: audioStream },
+          mimetype: "audio/mpeg",
+          fileName: `${videoInfo.title}.mp3`
+        },
+        { quoted: m }
+      );
+      return;
+    }
+
+    // 5️⃣ Enviar el audio
+    await conn.sendMessage(
+      m.chat,
+      {
+        audio: audioBuffer,
+        mimetype: "audio/mpeg",
+        fileName: `${videoInfo.title}.mp3`
+      },
+      { quoted: m }
+    );
+  } catch (e) {
+    console.error(e);
+    conn.reply(m.chat, "❗ Error al procesar tu solicitud.", m);
   }
 };
 
-export default play;
+handler.help = ["play"];
+handler.tags = ["descargas"];
+handler.command = ["play"];
+
+export default handler;
