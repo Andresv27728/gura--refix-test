@@ -40,7 +40,7 @@ const handler = async (m, { conn, text, command }) => {
       await m.reply(caption, null, rcanal)
     }
 
-    const api = `https://theadonix-api.vercel.app/api/ytmp4?url=${encodeURIComponent(url)}`
+    const api = `https://api.davidcyriltech.my.id/download/ytmp3?url=${encodeURIComponent(url)}`
     const res = await fetch(api)
     const json = await res.json()
 
