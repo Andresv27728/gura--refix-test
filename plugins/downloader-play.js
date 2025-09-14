@@ -6,12 +6,11 @@ import path from "path";
 
 const __dirname = process.cwd();
 
+// 🔑 APIS QUE AÚN FUNCIONAN
 const backups = [
-  url => `https://api.akuari.my.id/downloader/youtube?link=${encodeURIComponent(url)}`,
-  url => `https://api.ryzendesu.vip/downloader/ytmp3?url=${encodeURIComponent(url)}`,
-  url => `https://api.giftedtechnexus.co/download/ytmp3?url=${encodeURIComponent(url)}`,
-  url => `https://widipe.com/download/ytmp4?url=${encodeURIComponent(url)}`,
-  url => `https://dlpanda.com/api?url=${encodeURIComponent(url)}&type=mp3`
+  url => `https://api-v1.majhcc.my.id/api/ytmp3?url=${encodeURIComponent(url)}`,
+  url => `https://api-v1.xypherxz.my.id/api/ytmp3?url=${encodeURIComponent(url)}`,
+  url => `https://api.agatz.xyz/api/ytmp3?url=${encodeURIComponent(url)}`
 ];
 
 async function ytdlDownload(url) {
@@ -25,7 +24,7 @@ async function ytdlDownload(url) {
     const stream = ytdl(url, {
       filter: "audioonly",
       quality: "highestaudio",
-      highWaterMark: 1 << 25 // evita "premature close"
+      highWaterMark: 1 << 25
     }).pipe(fs.createWriteStream(file));
 
     stream.on("finish", resolve);
@@ -44,12 +43,10 @@ async function apiDownload(url) {
       const data = await res.json().catch(() => null);
       if (!data) continue;
 
-      // intenta detectar la URL de descarga
       const dlUrl =
-        data.result?.url ||
         data.result?.download_url ||
+        data.result?.url ||
         data.result?.link ||
-        data.download?.link ||
         null;
 
       if (dlUrl) return { dlUrl, title: data.result?.title || "audio" };
@@ -62,7 +59,7 @@ async function apiDownload(url) {
 }
 
 let handler = async (m, { text, conn }) => {
-  if (!text) return m.reply("🔎 Ingresa el enlace o nombre de una canción.");
+  if (!text) return m.reply("🔎 Ingresa un enlace de YouTube.");
 
   let url = text.includes("youtube.com") || text.includes("youtu.be") ? text : null;
 
@@ -94,7 +91,7 @@ let handler = async (m, { text, conn }) => {
         return;
       }
     } else {
-      m.reply("❌ Solo soporta enlaces de YouTube por ahora.");
+      m.reply("❌ Solo soporta enlaces de YouTube.");
     }
   } catch (e) {
     console.log(e);
