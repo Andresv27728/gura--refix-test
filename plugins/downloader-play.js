@@ -35,53 +35,26 @@ let handler = async (m, { conn, usedPrefix, command, text }) => {
       await m.reply(info)
     }
 
-    // 🎧 Descargar audio desde múltiples APIs
-    const apis = [
-      `https://theadonix-api.vercel.app/api/ytmp3?url=${encodeURIComponent(result.url)}`, // API 1
-      `https://yt1s.com/api/ajaxSearch/index?vid=${encodeURIComponent(result.url)}`, // API 2
-      `https://api.vevioz.com/api/button/mp3/${encodeURIComponent(result.url)}`, // API 3
-      `https://api.ytjar.download/audio?url=${encodeURIComponent(result.url)}` // API 4
-    ]
+    // 🎧 Descargar audio con la API de davidcyriltech
+    let apiUrl = `https://api.davidcyriltech.my.id/download/ytmp3?url=${encodeURIComponent(result.url)}`
+    let res = await fetch(apiUrl)
+    let json = await res.json()
 
-    let audioUrl = null
-    for (const api of apis) {
-      try {
-        const res = await fetch(api)
-        const json = await res.json()
-
-        // Verificar si la API devuelve un enlace de audio
-        if (json?.result?.audio) {
-          audioUrl = json.result.audio
-          break
-        } else if (json?.links?.mp3) {
-          audioUrl = json.links.mp3
-          break
-        } else if (json?.url) {
-          audioUrl = json.url
-          break
-        }
-      } catch (e) {
-        console.error(`Error con la API: ${api}`, e)
-      }
-    }
-
-    if (!audioUrl) {
+    if (!json.success || !json.result?.download_url) {
       return m.reply('❌ *Hyaaa~ No pude conseguir el audio buba~.*')
     }
 
-    // 🗣️ Descargar el buffer
-    let audioRes = await fetch(audioUrl)
-    if (!audioRes.ok) throw new Error('No se pudo descargar el archivo de audio.')
-
-    let audioBuffer = await audioRes.buffer()
+    let audioUrl = json.result.download_url
 
     // 🎤 Enviar como nota de voz
     await conn.sendMessage(m.chat, {
-      audio: audioBuffer,
-      mimetype: 'audio/mpeg',
+      audio: { url: audioUrl },
+      mimetype: 'audio/mp4',
       fileName: 'audio.mp3',
       ptt: true
     }, { quoted: m })
+
+    await m.reply(`✅ *${json.result.title}* descargado con éxito buba~ 🦈`)
 
   } catch (e) {
     m.reply(`❌ *Gyaa~ Algo salió mal desu~: ${e.message}*`)
@@ -89,5 +62,5 @@ let handler = async (m, { conn, usedPrefix, command, text }) => {
   }
 }
 
-handler.command = ['ytbuscar', 'ytsearch'] // Puedes personalizar el comando
+handler.command = ['ytbuscar', 'ytsearch']
 export default handler
