@@ -1,18 +1,10 @@
 import axios from 'axios';
-import { pinterest } from '../lib/scraper.js';
 
 let handler = async (m, { conn, usedPrefix, command, text }) => {
 if (!text) throw `*⚠️ ${await tr("Ingresa el término de búsqueda.")}*\n${await tr("Ejemplo")}: ${usedPrefix + command} nayeon`;
 m.react("⌛");
 try {
 const downloadAttempts = [async () => {
-const response = await pinterest.search(text, 6);
-const pins = response.result.pins.slice(0, 6);
-return pins.map(pin => ({title: pin.title || text,
-description: `🔎 Por: ${pin.uploader.username}`,
-image: pin.media.images.orig.url}));
-},
-async () => {
 const res = await axios.get(`https://api.siputzx.my.id/api/s/pinterest?query=${encodeURIComponent(text)}`);
 const data = res.data.data.slice(0, 6);
 return data.map(result => ({title: result.grid_title || text, description: '', image: result.images_url }));
