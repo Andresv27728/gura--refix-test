@@ -259,7 +259,10 @@ async function handleLogin() {
   }
 }
 
-await handleLogin();
+// Iniciar sesión solo si no hay credenciales guardadas
+if (!existsSync(join(__dirname, './sessions/creds.json'))) {
+  await handleLogin();
+}
 
 conn.isInit = false;
 conn.well = false;
@@ -335,19 +338,11 @@ async function connectionUpdate(update) {
 
   }
   const reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
-  if (reason === 405) {
-    if (existsSync('./sessions/creds.json')) unlinkSync('./sessions/creds.json');
-    console.log(
-      chalk.bold.redBright(
-        `Conexión reemplazada, por favor espera un momento. Reiniciando...\nSi aparecen errores, vuelve a iniciar con: npm start`
-      )
-    );
-    process.send('reset');
-  }
   if (connection === 'close') {
     switch (reason) {
       case DisconnectReason.badSession:
         conn.logger.error(`Sesión incorrecta, elimina la carpeta ${global.authFile} y escanea nuevamente.`);
+        process.exit(1);
         break;
       case DisconnectReason.connectionClosed:
       case DisconnectReason.connectionLost:
@@ -357,11 +352,13 @@ async function connectionUpdate(update) {
         break;
       case DisconnectReason.connectionReplaced:
         conn.logger.error(
-          `Conexión reemplazada, se abrió otra sesión. Cierra esta sesión primero.`
+          `Conexión reemplazada, se abrió otra sesión. Cierra esta sesión y reinicia.`
         );
+        process.exit(1);
         break;
       case DisconnectReason.loggedOut:
         conn.logger.error(`Sesión cerrada, elimina la carpeta ${global.authFile} y escanea nuevamente.`);
+        process.exit(1);
         break;
       case DisconnectReason.restartRequired:
         conn.logger.info(`Reinicio necesario, reinicia el servidor si hay problemas.`);
