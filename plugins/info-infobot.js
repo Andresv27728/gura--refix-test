@@ -56,7 +56,7 @@ const handler = async (m, { conn }) => {
 │  ├─ 🟢 Estado: Online                               │
 │  ├─ 🔋 Performance: ${memPercent < 80 ? 'Óptimo' : 'Alto uso'}             │
 │  ├─ 📡 Conexión: Estable                           │
-│  └─ 🦈 Versión: Gawr Gura Bot v2.0                 │
+│  └─ 🦈 Versión: Gawr Gura Bot v3.0                 │
 │                                                    │
 ╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯
 
